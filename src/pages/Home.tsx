@@ -240,7 +240,7 @@ export function Home() {
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
               <Clock size={20} className="text-slate-400" />
-              Decks Recentes com cards validação
+              Decks Recentes
             </h2>
             <Link to="/library" className="text-sm text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-colors">
               Ver todos <ChevronRight size={16} />

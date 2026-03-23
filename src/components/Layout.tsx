@@ -470,10 +470,7 @@ export function Layout() {
         <div className="flex justify-around items-center p-2">
           <NavItem to="/" icon={Home} label="Início" active={location.pathname === '/'} mobileOnly />
           <NavItem to="/library" icon={Library} label="Biblioteca" active={location.pathname === '/library'} mobileOnly />
-          <Link to="/create" className="relative -top-5 bg-brand-600 hover:bg-brand-500 text-white p-3 rounded-full shadow-lg shadow-brand-600/40 transition-transform active:scale-95 border-4 border-slate-950">
-            <PlusCircle size={24} strokeWidth={2.5} />
-          </Link>
-          <NavItem to="/settings" icon={Settings} label="Config" active={location.pathname === '/settings'} mobileOnly />
+          <NavItem to="/create" icon={PlusCircle} label="Criar" active={location.pathname === '/create'} mobileOnly />
         </div>
       </div>
     </div>
