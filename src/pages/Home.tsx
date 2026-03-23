@@ -10,7 +10,10 @@ export function Home() {
   const [stats, setStats] = useState({
     totalDecks: 0,
     validatedDecks: 0,
-    percentage: 0
+    decksPercentage: 0,
+    totalCards: 0,
+    validatedCards: 0,
+    cardsPercentage: 0
   });
   const [recentDecks, setRecentDecks] = useState<any[]>([]);
 
@@ -22,7 +25,7 @@ export function Home() {
         // Fetch all decks
         const { data: decks, error: decksError } = await supabase
           .from('decks_template')
-          .select('id, title, tags, created_at, cover_image')
+          .select('*')
           .order('created_at', { ascending: false });
           
         if (decksError) throw decksError;
@@ -34,9 +37,13 @@ export function Home() {
           
         if (cardsError) throw cardsError;
         
+        const totalCards = cards?.length || 0;
+        const validatedCards = cards?.filter(c => c.is_validated).length || 0;
+        const cardsPercentage = totalCards > 0 ? Math.round((validatedCards / totalCards) * 100) : 0;
+
         const totalDecks = decks?.length || 0;
         let validatedDecksCount = 0;
-        const fullyValidatedDecks: any[] = [];
+        const recentValidatedDecks: any[] = [];
         
         const mappedDecks = decks?.map(d => {
           const deckCards = cards?.filter(c => c.deck_id === d.id) || [];
@@ -60,19 +67,26 @@ export function Home() {
             isDeckValidated
           };
           
-          if (isDeckValidated) {
-            fullyValidatedDecks.push(mappedDeck);
+          if (deckValidated > 0) {
+            recentValidatedDecks.push(mappedDeck);
           }
           
           return mappedDeck;
         }) || [];
         
-        const percentage = totalDecks > 0 ? Math.round((validatedDecksCount / totalDecks) * 100) : 0;
+        const decksPercentage = totalDecks > 0 ? Math.round((validatedDecksCount / totalDecks) * 100) : 0;
         
-        setStats({ totalDecks, validatedDecks: validatedDecksCount, percentage });
+        setStats({ 
+          totalDecks, 
+          validatedDecks: validatedDecksCount, 
+          decksPercentage,
+          totalCards,
+          validatedCards,
+          cardsPercentage
+        });
         
-        // Show up to 6 most recently created decks that are fully validated
-        setRecentDecks(fullyValidatedDecks.slice(0, 6));
+        // Show up to 6 most recently created decks that have validated cards
+        setRecentDecks(recentValidatedDecks.slice(0, 6));
         
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
@@ -84,13 +98,22 @@ export function Home() {
     fetchDashboardData();
   }, []);
 
-  const chartData = [
+  const decksChartData = [
     { name: 'Validados', value: stats.validatedDecks, color: '#4ade80' },
     { name: 'Não Validados', value: stats.totalDecks - stats.validatedDecks, color: '#1e293b' }
   ].filter(d => d.value > 0);
   
   if (stats.totalDecks === 0) {
-    chartData.push({ name: 'Vazio', value: 1, color: '#1e293b' });
+    decksChartData.push({ name: 'Vazio', value: 1, color: '#1e293b' });
+  }
+
+  const cardsChartData = [
+    { name: 'Validados', value: stats.validatedCards, color: '#3b82f6' },
+    { name: 'Não Validados', value: stats.totalCards - stats.validatedCards, color: '#1e293b' }
+  ].filter(d => d.value > 0);
+  
+  if (stats.totalCards === 0) {
+    cardsChartData.push({ name: 'Vazio', value: 1, color: '#1e293b' });
   }
 
   if (loading) {
@@ -114,63 +137,99 @@ export function Home() {
         </div>
 
         {/* Stats Section */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Main Stat Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
-              <CheckCircle size={100} className="text-green-500" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+          {/* Decks Stat Card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 md:p-6 flex items-center justify-between gap-4 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
+              <Layers size={120} className="text-green-500" />
             </div>
-            <div className="relative z-10">
+            
+            <div className="relative z-10 flex flex-col flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center text-green-400">
+                <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center text-green-400 shrink-0">
                   <Layers size={20} />
                 </div>
-                <h3 className="text-slate-300 font-medium">Decks Validados</h3>
+                <h3 className="text-slate-300 font-medium leading-tight truncate">Decks Validados</h3>
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-5xl font-light text-white tracking-tight">{stats.validatedDecks}</span>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="text-4xl md:text-5xl font-light text-white tracking-tight">{stats.validatedDecks}</span>
                 <span className="text-slate-500 font-medium">/ {stats.totalDecks}</span>
               </div>
             </div>
-          </div>
 
-          {/* Chart Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex items-center gap-6">
-            <div className="relative w-24 h-24 shrink-0">
+            <div className="relative w-20 h-20 md:w-24 md:h-24 shrink-0 z-10">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={chartData}
+                    data={decksChartData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={35}
-                    outerRadius={45}
+                    innerRadius="70%"
+                    outerRadius="90%"
                     paddingAngle={2}
                     dataKey="value"
                     stroke="none"
                     startAngle={90}
                     endAngle={-270}
                   >
-                    {chartData.map((entry, index) => (
+                    {decksChartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-xl font-medium text-white leading-none">
-                  {stats.percentage}%
+                <span className="text-lg md:text-xl font-medium text-white leading-none">
+                  {stats.decksPercentage}%
                 </span>
               </div>
             </div>
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-400"></div>
-                <span className="text-sm text-slate-300">Validados ({stats.validatedDecks})</span>
+          </div>
+
+          {/* Cards Stat Card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 md:p-6 flex items-center justify-between gap-4 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
+              <CheckCircle size={120} className="text-blue-500" />
+            </div>
+            
+            <div className="relative z-10 flex flex-col flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 shrink-0">
+                  <CheckCircle size={20} />
+                </div>
+                <h3 className="text-slate-300 font-medium leading-tight truncate">Cards Validados</h3>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-slate-800"></div>
-                <span className="text-sm text-slate-300">Pendentes ({stats.totalDecks - stats.validatedDecks})</span>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="text-4xl md:text-5xl font-light text-white tracking-tight">{stats.validatedCards}</span>
+                <span className="text-slate-500 font-medium">/ {stats.totalCards}</span>
+              </div>
+            </div>
+
+            <div className="relative w-20 h-20 md:w-24 md:h-24 shrink-0 z-10">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={cardsChartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius="70%"
+                    outerRadius="90%"
+                    paddingAngle={2}
+                    dataKey="value"
+                    stroke="none"
+                    startAngle={90}
+                    endAngle={-270}
+                  >
+                    {cardsChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-lg md:text-xl font-medium text-white leading-none">
+                  {stats.cardsPercentage}%
+                </span>
               </div>
             </div>
           </div>
@@ -181,7 +240,7 @@ export function Home() {
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
               <Clock size={20} className="text-slate-400" />
-              Decks Validados
+              Decks Recentes com cards validação
             </h2>
             <Link to="/library" className="text-sm text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-colors">
               Ver todos <ChevronRight size={16} />
@@ -191,9 +250,9 @@ export function Home() {
           {recentDecks.length === 0 ? (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 flex flex-col items-center justify-center text-center">
               <Layers size={48} className="text-slate-700 mb-4" />
-              <h3 className="text-lg font-medium text-slate-300 mb-2">Nenhum deck validado</h3>
+              <h3 className="text-lg font-medium text-slate-300 mb-2">Nenhum deck com cards validados</h3>
               <p className="text-slate-500 max-w-md">
-                Você ainda não validou todos os cards de nenhum deck. Acesse seus decks e comece a validar o conteúdo.
+                Você ainda não validou nenhum card. Acesse seus decks e comece a validar o conteúdo.
               </p>
               <Link to="/library" className="mt-6 bg-brand-600 hover:bg-brand-500 text-white px-6 py-2 rounded-lg font-medium transition-colors">
                 Ir para Biblioteca
