@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { Layers, CheckCircle, Clock, ChevronRight } from 'lucide-react';
+import { Layers, CheckCircle, Clock, ChevronRight, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getDeckCoverImage, FALLBACK_IMAGE } from '../utils/imageMapping';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
@@ -15,7 +15,8 @@ export function Home() {
     validatedCards: 0,
     cardsPercentage: 0
   });
-  const [recentDecks, setRecentDecks] = useState<any[]>([]);
+  const [allDecks, setAllDecks] = useState<any[]>([]);
+  const [deckFilter, setDeckFilter] = useState<'all' | 'with_cards' | 'empty'>('all');
 
   useEffect(() => {
     async function fetchDashboardData() {
@@ -85,8 +86,7 @@ export function Home() {
           cardsPercentage
         });
         
-        // Show up to 6 most recently created decks that have validated cards
-        setRecentDecks(recentValidatedDecks.slice(0, 6));
+        setAllDecks(mappedDecks);
         
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
@@ -97,6 +97,34 @@ export function Home() {
     
     fetchDashboardData();
   }, []);
+
+  const filteredDecks = useMemo(() => {
+    let filtered = [...allDecks];
+    
+    if (deckFilter === 'with_cards') {
+      filtered = filtered.filter(d => d.totalCount > 0);
+    } else if (deckFilter === 'empty') {
+      filtered = filtered.filter(d => d.totalCount === 0);
+    }
+    
+    // Ordenar por decks com mais cards validados quando "Todos" ou "Com Cards"
+    if (deckFilter === 'all' || deckFilter === 'with_cards') {
+      filtered.sort((a, b) => {
+        // 1. Maior número de cards validados primeiro
+        if (b.validatedCount !== a.validatedCount) {
+          return b.validatedCount - a.validatedCount;
+        }
+        // 2. Maior número total de cards como desempate
+        if (b.totalCount !== a.totalCount) {
+          return b.totalCount - a.totalCount;
+        }
+        // 3. Mais recentes primeiro como último desempate
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+    }
+    
+    return filtered;
+  }, [allDecks, deckFilter]);
 
   const decksChartData = [
     { name: 'Validados', value: stats.validatedDecks, color: '#4ade80' },
@@ -235,79 +263,90 @@ export function Home() {
           </div>
         </div>
 
-        {/* Recent Validated Decks */}
+        {/* Decks List */}
         <div>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Clock size={20} className="text-slate-400" />
-              Decks Recentes
-            </h2>
-            <Link to="/library" className="text-sm text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-colors">
-              Ver todos <ChevronRight size={16} />
-            </Link>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Layers size={20} className="text-slate-400" />
+                Decks
+              </h2>
+            </div>
+            
+            <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+              <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800 overflow-x-auto no-scrollbar">
+                <button
+                  onClick={() => setDeckFilter('all')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${deckFilter === 'all' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-300'}`}
+                >
+                  Todos
+                </button>
+                <button
+                  onClick={() => setDeckFilter('with_cards')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${deckFilter === 'with_cards' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-300'}`}
+                >
+                  Com Cards
+                </button>
+                <button
+                  onClick={() => setDeckFilter('empty')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${deckFilter === 'empty' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-300'}`}
+                >
+                  Vazios
+                </button>
+              </div>
+            </div>
           </div>
           
-          {recentDecks.length === 0 ? (
+          {filteredDecks.length === 0 ? (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 flex flex-col items-center justify-center text-center">
               <Layers size={48} className="text-slate-700 mb-4" />
-              <h3 className="text-lg font-medium text-slate-300 mb-2">Nenhum deck com cards validados</h3>
+              <h3 className="text-lg font-medium text-slate-300 mb-2">Nenhum deck encontrado</h3>
               <p className="text-slate-500 max-w-md">
-                Você ainda não validou nenhum card. Acesse seus decks e comece a validar o conteúdo.
+                {deckFilter === 'empty' 
+                  ? 'Você não possui decks vazios no momento.' 
+                  : deckFilter === 'with_cards' 
+                    ? 'Você não possui decks com cards no momento.' 
+                    : 'Você ainda não possui nenhum deck. Crie um novo deck para começar.'}
               </p>
               <Link to="/library" className="mt-6 bg-brand-600 hover:bg-brand-500 text-white px-6 py-2 rounded-lg font-medium transition-colors">
                 Ir para Biblioteca
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {recentDecks.map(deck => (
+            <div className="flex flex-col gap-3">
+              {filteredDecks.map(deck => (
                 <Link 
                   key={deck.id} 
                   to={`/deck/${deck.id}`}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all group flex flex-col"
+                  className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-xl p-4 hover:bg-slate-800/50 hover:border-slate-700 transition-all group"
                 >
-                  <div className="h-32 w-full relative overflow-hidden bg-slate-800">
-                    <img 
-                      src={getDeckCoverImage(deck.tags, deck.title)} 
-                      alt={deck.title}
-                      className="w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-500"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = FALLBACK_IMAGE;
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
-                    <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl">{deck.icon || '📚'}</span>
-                        <h3 className="font-bold text-white text-lg leading-tight line-clamp-1 group-hover:text-brand-300 transition-colors">
-                          {deck.title}
-                        </h3>
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="w-12 h-12 rounded-lg bg-slate-800 flex items-center justify-center text-2xl shrink-0">
+                      {deck.icon || '📚'}
+                    </div>
+                    <div className="flex flex-col flex-1">
+                      <h3 className="font-bold text-white text-base group-hover:text-brand-300 transition-colors">
+                        {deck.title}
+                      </h3>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-sm text-slate-400">
+                          {deck.totalCount} cards
+                        </span>
+                        <div className="flex items-center gap-2 w-24 sm:w-32">
+                          <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-green-500 rounded-full transition-all duration-500" 
+                              style={{ width: `${deck.percentage}%` }} 
+                            />
+                          </div>
+                          <span className="text-xs text-slate-400 font-medium">
+                            {deck.percentage}%
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  
-                  <div className="p-4 flex-1 flex flex-col justify-between">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-1.5 text-slate-400 text-sm">
-                        <Layers size={14} />
-                        <span>{deck.totalCount} cards</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-green-400 text-sm font-medium bg-green-400/10 px-2 py-0.5 rounded-md">
-                        <CheckCircle size={14} />
-                        <span>{deck.validatedCount} validados</span>
-                      </div>
-                    </div>
-                    
-                    <div className="w-full bg-slate-800 rounded-full h-1.5 mb-1 overflow-hidden">
-                      <div 
-                        className="bg-green-500 h-1.5 rounded-full transition-all duration-500" 
-                        style={{ width: `${deck.percentage}%` }}
-                      ></div>
-                    </div>
-                    <div className="text-right text-[10px] text-slate-500 font-medium">
-                      {deck.percentage}% concluído
-                    </div>
-                  </div>
+                  <ArrowRight size={20} className="text-slate-600 group-hover:text-slate-400 transition-colors" />
                 </Link>
               ))}
             </div>
