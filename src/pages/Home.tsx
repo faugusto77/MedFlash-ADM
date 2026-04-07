@@ -31,12 +31,32 @@ export function Home() {
           
         if (decksError) throw decksError;
         
-        // Fetch all flashcards to calculate stats
-        const { data: cards, error: cardsError } = await supabase
-          .from('flashcards_template')
-          .select('id, is_validated, deck_id');
+        // Fetch all flashcards to calculate stats using pagination to avoid 1000 row limit
+        let allCards: any[] = [];
+        let hasMore = true;
+        let from = 0;
+        const step = 1000;
+
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('flashcards_template')
+            .select('id, is_validated, deck_id')
+            .range(from, from + step - 1);
+            
+          if (error) throw error;
           
-        if (cardsError) throw cardsError;
+          if (data && data.length > 0) {
+            allCards = [...allCards, ...data];
+            from += step;
+            if (data.length < step) {
+              hasMore = false;
+            }
+          } else {
+            hasMore = false;
+          }
+        }
+        
+        const cards = allCards;
         
         const totalCards = cards?.length || 0;
         const validatedCards = cards?.filter(c => c.is_validated).length || 0;

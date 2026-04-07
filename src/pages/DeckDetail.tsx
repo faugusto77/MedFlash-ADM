@@ -82,15 +82,36 @@ export function DeckDetail() {
           return;
         }
 
-        const { data: cardsData, error: cardsError } = await supabase
-          .from('flashcards_template')
-          .select('*')
-          .eq('deck_id', id)
-          .order('created_at', { ascending: true });
+        let allCardsData: any[] = [];
+        let hasMoreCards = true;
+        let from = 0;
+        const step = 1000;
 
-        if (cardsError) {
-          console.error('Error fetching cards from Supabase:', cardsError.message);
+        while (hasMoreCards) {
+          const { data: cardsBatch, error: cardsError } = await supabase
+            .from('flashcards_template')
+            .select('*')
+            .eq('deck_id', id)
+            .order('created_at', { ascending: true })
+            .range(from, from + step - 1);
+
+          if (cardsError) {
+            console.error('Error fetching cards from Supabase:', cardsError.message);
+            break;
+          }
+
+          if (cardsBatch && cardsBatch.length > 0) {
+            allCardsData = [...allCardsData, ...cardsBatch];
+            from += step;
+            if (cardsBatch.length < step) {
+              hasMoreCards = false;
+            }
+          } else {
+            hasMoreCards = false;
+          }
         }
+
+        const cardsData = allCardsData;
 
         if (deckData) {
           const mappedCards = (cardsData || []).map(c => ({

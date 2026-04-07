@@ -20,22 +20,57 @@ export function Library() {
     async function fetchDecks() {
       try {
         setLoading(true);
-        const { data, error } = await supabase
+        const { data: decksData, error: decksError } = await supabase
           .from('decks_template')
           .select('*');
 
-        if (error) {
-          console.error('Error fetching from Supabase:', error.message);
-        } else if (data) {
-          const mapped = data.map(d => ({
-            ...d,
-            id: d.id,
-            title: d.title || 'Sem Título',
-            tags: Array.isArray(d.tags) ? d.tags : [],
-            icon: d.icon || '📚',
-            cards: new Array(d.total_count || 0),
-            stats: { masteryPercentage: d.mastery_score || 0 }
-          }));
+        if (decksError) {
+          console.error('Error fetching from Supabase:', decksError.message);
+        } else if (decksData) {
+          // Fetch all flashcards to calculate stats using pagination to avoid 1000 row limit
+          let allCards: any[] = [];
+          let hasMore = true;
+          let from = 0;
+          const step = 1000;
+
+          while (hasMore) {
+            const { data: cardsBatch, error: cardsError } = await supabase
+              .from('flashcards_template')
+              .select('id, is_validated, deck_id')
+              .range(from, from + step - 1);
+              
+            if (cardsError) {
+              console.error('Error fetching cards:', cardsError.message);
+              break;
+            }
+            
+            if (cardsBatch && cardsBatch.length > 0) {
+              allCards = [...allCards, ...cardsBatch];
+              from += step;
+              if (cardsBatch.length < step) {
+                hasMore = false;
+              }
+            } else {
+              hasMore = false;
+            }
+          }
+
+          const mapped = decksData.map(d => {
+            const deckCards = allCards.filter(c => c.deck_id === d.id);
+            const deckTotal = deckCards.length;
+            const deckValidated = deckCards.filter(c => c.is_validated).length;
+            const deckPercentage = deckTotal > 0 ? Math.round((deckValidated / deckTotal) * 100) : 0;
+
+            return {
+              ...d,
+              id: d.id,
+              title: d.title || 'Sem Título',
+              tags: Array.isArray(d.tags) ? d.tags : [],
+              icon: d.icon || '📚',
+              cards: new Array(deckTotal),
+              stats: { masteryPercentage: deckPercentage }
+            };
+          });
           setDecks(mapped);
         }
       } catch (err) {
