@@ -56,6 +56,7 @@ export function DeckDetail() {
 
   // States para Modais
   const [previewCard, setPreviewCard] = useState<Flashcard | null>(null);
+  const [lastSelectedCardId, setLastSelectedCardId] = useState<string | null>(null);
   const [isPreviewFlipped, setIsPreviewFlipped] = useState(false);
   const [previewMode, setPreviewMode] = useState<'view' | 'study'>('view');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -173,13 +174,15 @@ export function DeckDetail() {
       const card = deck.cards.find(c => c.id === state.selectedCardId);
       if (card) {
         setPreviewCard(card);
+        setLastSelectedCardId(card.id);
         setPreviewMode('view');
         setIsPreviewFlipped(false);
         // Limpa o estado para não reabrir ao recarregar a página
         navigate(location.pathname, { replace: true, state: {} });
       }
     } else if (state?.scrollToCardId && deck) {
-      // Rolar para o card instantaneamente
+      // Rolar para o card instantaneamente e marcá-lo como selecionado
+      setLastSelectedCardId(state.scrollToCardId);
       setTimeout(() => {
         const element = document.getElementById(`card-${state.scrollToCardId}`);
         if (element) {
@@ -237,6 +240,7 @@ export function DeckDetail() {
 
   const handleOpenStudy = (card: Flashcard) => {
       setPreviewCard(card);
+      setLastSelectedCardId(card.id);
       setPreviewMode('study');
       setIsPreviewFlipped(false);
       setPreviewStartTime(Date.now());
@@ -244,6 +248,7 @@ export function DeckDetail() {
 
   const handleOpenView = (card: Flashcard) => {
       setPreviewCard(card);
+      setLastSelectedCardId(card.id);
       setPreviewMode('view');
       setIsPreviewFlipped(false);
   };
@@ -766,8 +771,19 @@ export function DeckDetail() {
 
           return filteredCards.map((card, idx) => {
             const confidenceColor = getConfidenceColor(card.confidence);
+            const isLastSelected = card.id === lastSelectedCardId;
+            
             return (
-              <div id={`card-${card.id}`} key={card.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex gap-4 hover:border-slate-700 transition-colors group relative overflow-hidden">
+              <div 
+                id={`card-${card.id}`} 
+                key={card.id} 
+                className={clsx(
+                  "bg-slate-900 border p-4 rounded-xl flex gap-4 transition-all group relative overflow-hidden",
+                  isLastSelected 
+                    ? "border-teal-500 shadow-[0_0_15px_rgba(20,184,166,0.15)]" 
+                    : "border-slate-800 hover:border-slate-700"
+                )}
+              >
               <div 
                 className={clsx(
                   "absolute left-0 top-0 bottom-0 w-1.5 transition-all duration-300 group-hover:w-2",
@@ -806,7 +822,12 @@ export function DeckDetail() {
                   <button onClick={() => handleOpenView(card)} className="p-2 text-slate-400 hover:bg-slate-700 hover:text-white rounded-lg transition-colors" title="Visualizar">
                       <Eye size={16} />
                   </button>
-                  <Link to={`/deck/${deck.id}/edit/${card.id}`} className="p-2 text-slate-400 hover:bg-slate-700 hover:text-white rounded-lg transition-colors" title="Editar">
+                  <Link 
+                    to={`/deck/${deck.id}/edit/${card.id}`} 
+                    onClick={() => setLastSelectedCardId(card.id)}
+                    className="p-2 text-slate-400 hover:bg-slate-700 hover:text-white rounded-lg transition-colors" 
+                    title="Editar"
+                  >
                       <Edit2 size={16} />
                   </Link>
                   <button 
